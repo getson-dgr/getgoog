@@ -145,23 +145,19 @@ export default function Mirror() {
     }, 100);
   }
 
-  async function handleSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+const sent = await sendState("search");
 
-    const query = textRef.current.trim();
-    if (!query) return;
+if (sent) {
+  textRef.current = "";
+  setText("");
 
-    textRef.current = query;
-    setText(query);
+  // Tell connected visitors to clear the search box
+  await sendState("typing");
 
-    const sent = await sendState("search");
-
-    if (sent) {
-      window.location.assign(
-        "https://www.google.com/search?q=" + encodeURIComponent(query)
-      );
-    }
-  }
+  window.location.assign(
+    "https://www.google.com/search?q=" + encodeURIComponent(query)
+  );
+}
 
   return (
     <main className="mobile-search-page">
