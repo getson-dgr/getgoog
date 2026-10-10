@@ -71,7 +71,11 @@ export default function Mirror() {
         }
       }
     });
-
+<img
+  src="/google-home.png"
+  alt="Mobile search homepage"
+  className="reference-image"
+/>
     channel.subscribe((subscriptionStatus) => {
       if (!active) return;
 
