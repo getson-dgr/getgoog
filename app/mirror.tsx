@@ -2,118 +2,65 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  createClient,
-  type RealtimeChannel,
-} from "@supabase/supabase-js";
+import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
 
-type MirrorState = {
+type SharedState = {
   text: string;
-  redirectUrl: string;
-  action: "idle" | "redirect";
+  action: "typing" | "search";
   updatedAt: number;
-};
-
-const initialState: MirrorState = {
-  text: "",
-  redirectUrl: "",
-  action: "idle",
-  updatedAt: 0,
 };
 
 export default function Mirror() {
   const [text, setText] = useState("");
-  const [redirectUrl, setRedirectUrl] = useState("");
-  const [room, setRoom] = useState("home");
-  const [controller, setController] = useState(false);
-  const [connected, setConnected] = useState(false);
   const [status, setStatus] = useState("Connecting…");
-
   const channelRef = useRef<RealtimeChannel | null>(null);
   const connectedRef = useRef(false);
-  const controllerRef = useRef(false);
   const textRef = useRef("");
-  const redirectRef = useRef("");
-  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSentRef = useRef(0);
 
   useEffect(() => {
-    const path = window.location.pathname
-      .split("/")
-      .filter(Boolean)
-      .join("-");
-
-    setRoom(path || "home");
-
-    const isController =
-      new URLSearchParams(window.location.search).get("control") === "1";
-
-    setController(isController);
-    controllerRef.current = isController;
-  }, []);
-
-  useEffect(() => {
-    if (room === "home" && window.location.pathname !== "/") {
-      return;
-    }
-
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      setStatus(
+        `Configuration missing: URL=${Boolean(url)}, KEY=${Boolean(key)}`
+      );
+      return;
+    }
 
-if (!url || !key) {
-  setStatus(
-    `Missing configuration: URL=${Boolean(url)}, KEY=${Boolean(key)}`
-  );
-  return;
-}
     const supabase = createClient(url, key);
     let active = true;
 
-    const channel = supabase.channel(`mirror-${room}`, {
-      config: {
-        broadcast: { self: false },
-      },
+    const channel = supabase.channel("magic-mirror-global", {
+      config: { broadcast: { self: false } },
     });
 
     channelRef.current = channel;
 
-    channel.on("broadcast", { event: "state" }, ({ payload }) => {
+    channel.on("broadcast", { event: "shared-state" }, ({ payload }) => {
       if (!active || !payload) return;
 
-      const next = payload as Partial<MirrorState>;
+      const next = payload as Partial<SharedState>;
+
+      // Ignore older updates that arrive after a newer update.
+      if (
+        typeof next.updatedAt !== "number" ||
+        next.updatedAt < lastSentRef.current
+      ) {
+        return;
+      }
 
       if (typeof next.text === "string") {
         textRef.current = next.text;
         setText(next.text);
       }
 
-      if (typeof next.redirectUrl === "string") {
-        redirectRef.current = next.redirectUrl;
-        setRedirectUrl(next.redirectUrl);
-      }
-
-      // Only an explicit redirect event can trigger navigation.
-      // The controller's own Go action handles its own navigation.
-      if (
-        next.action === "redirect" &&
-        !controllerRef.current &&
-        typeof next.redirectUrl === "string"
-      ) {
-        const destination = safeUrl(next.redirectUrl);
-
-        if (destination) {
-          if (redirectTimerRef.current) {
-            clearTimeout(redirectTimerRef.current);
-          }
-
-          redirectTimerRef.current = setTimeout(() => {
-            if (active) window.location.assign(destination);
-          }, 500);
-        }
+      if (next.action === "search" && typeof next.text === "string") {
+        window.location.assign(
+          "https://www.google.com/search?q=" + encodeURIComponent(next.text)
+        );
       }
     });
 
@@ -122,15 +69,13 @@ if (!url || !key) {
 
       if (subscriptionStatus === "SUBSCRIBED") {
         connectedRef.current = true;
-        setConnected(true);
-        setStatus(`Live • room /${room}`);
+        setStatus("Live · shared by everyone");
       } else if (
         subscriptionStatus === "CHANNEL_ERROR" ||
         subscriptionStatus === "TIMED_OUT" ||
         subscriptionStatus === "CLOSED"
       ) {
         connectedRef.current = false;
-        setConnected(false);
         setStatus(`Connection issue: ${subscriptionStatus}`);
       }
     });
@@ -138,210 +83,99 @@ if (!url || !key) {
     return () => {
       active = false;
       connectedRef.current = false;
-
-      if (redirectTimerRef.current) {
-        clearTimeout(redirectTimerRef.current);
-      }
-
       channelRef.current = null;
+
+      if (timerRef.current) clearTimeout(timerRef.current);
       void supabase.removeChannel(channel);
     };
-  }, [room]);
+  }, []);
 
-  async function broadcast(
-    updates: Partial<MirrorState> = {},
-    action: "idle" | "redirect" = "idle"
-  ) {
+  async function sendState(action: SharedState["action"] = "typing") {
     const channel = channelRef.current;
 
     if (!channel || !connectedRef.current) {
-      setStatus("Not connected yet. Please wait and try again.");
-      return false;
-    }
-
-    const payload: MirrorState = {
-      text: textRef.current,
-      redirectUrl: redirectRef.current,
-      action,
-      updatedAt: Date.now(),
-      ...updates,
-    };
-
-    try {
-      const result = await channel.send({
-        type: "broadcast",
-        event: "state",
-        payload,
-      });
-
-      if (result !== "ok") {
-        setStatus("Sync failed. Check your connection.");
-        return false;
-      }
-
-      return true;
-    } catch (error) {
-      console.error("Broadcast failed:", error);
-      setStatus("Sync failed. Check Supabase settings.");
-      return false;
-    }
-  }
-
-  function handleTextChange(value: string) {
-    if (!controller) return;
-
-    textRef.current = value;
-    setText(value);
-
-    // Send the latest text after a short pause while typing.
-    if (redirectTimerRef.current) {
-      clearTimeout(redirectTimerRef.current);
-    }
-
-    redirectTimerRef.current = setTimeout(() => {
-      void broadcast({ text: value });
-    }, 80);
-  }
-
-  function handleUrlChange(value: string) {
-    if (!controller) return;
-
-    redirectRef.current = value;
-    setRedirectUrl(value);
-  }
-
-  async function handleGo() {
-    const destination = safeUrl(redirectRef.current);
-
-    if (!destination) {
-      setStatus("Enter a valid http:// or https:// URL.");
+      setStatus("Connecting… please try again in a moment.");
       return;
     }
 
-    const sent = await broadcast(
-      { redirectUrl: destination },
-      "redirect"
-    );
+    const updatedAt = Date.now();
+    lastSentRef.current = updatedAt;
 
-    if (sent) {
-      window.location.assign(destination);
+    const result = await channel.send({
+      type: "broadcast",
+      event: "shared-state",
+      payload: {
+        text: textRef.current,
+        action,
+        updatedAt,
+      } satisfies SharedState,
+    });
+
+    if (result !== "ok") {
+      setStatus("Sync failed. Check your connection.");
     }
   }
 
-  async function handleClear() {
-    textRef.current = "";
-    setText("");
-    await broadcast({ text: "" });
+  function handleChange(value: string) {
+    textRef.current = value;
+    setText(value);
+
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      void sendState("typing");
+    }, 100);
+  }
+
+  function handleSearch(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const query = textRef.current.trim();
+    if (!query) return;
+
+    textRef.current = query;
+    setText(query);
+
+    void sendState("search").then(() => {
+      window.location.assign(
+        "https://www.google.com/search?q=" + encodeURIComponent(query)
+      );
+    });
   }
 
   return (
     <main className="page">
       <header className="topbar">
-        <div className="brand" aria-label="Search Mirror">
-          <span className="brand-blue">S</span>
-          <span className="brand-red">e</span>
-          <span className="brand-yellow">a</span>
-          <span className="brand-blue">r</span>
-          <span className="brand-green">c</span>
-          <span className="brand-red">h</span>
-        </div>
-
+        <div className="brand" aria-label="Search Mirror">Search</div>
         <div className="top-right">
-          <span className={`dot ${connected ? "on" : ""}`} />
+          <span className={`dot ${status.startsWith("Live") ? "on" : ""}`} />
           {status}
         </div>
       </header>
 
       <section className="hero">
-        <div className="logo" aria-label="Search Mirror">
-          <span className="brand-blue">S</span>
-          <span className="brand-red">e</span>
-          <span className="brand-yellow">a</span>
-          <span className="brand-blue">r</span>
-          <span className="brand-green">c</span>
-          <span className="brand-red">h</span>
-          <span className="mirror-word">Mirror</span>
+        <div className="logo">
+          <span className="mirror-word">Search Mirror</span>
         </div>
 
-        <div className="searchbox">
+        <form className="searchbox" onSubmit={handleSearch}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <circle cx="10.8" cy="10.8" r="6.8" />
             <path d="m16 16 5 5" />
           </svg>
 
           <input
-            aria-label="Mirrored search text"
+            aria-label="Shared search"
             value={text}
-            onChange={(event) => handleTextChange(event.target.value)}
-            readOnly={!controller}
-            placeholder={
-              controller
-                ? "Type here to mirror live…"
-                : "Waiting for the controller…"
-            }
+            onChange={(event) => handleChange(event.target.value)}
+            placeholder="Type a search…"
           />
 
-          {controller && text && (
-            <button
-              className="clear"
-              onClick={() => void handleClear()}
-              aria-label="Clear text"
-            >
-              ×
-            </button>
-          )}
-        </div>
+          <button type="submit" aria-label="Search">Search</button>
+        </form>
 
-        <div className="buttons">
-          {controller ? (
-            <>
-              <button
-                onClick={() => void broadcast({ text: textRef.current })}
-              >
-                Sync now
-              </button>
-              <button onClick={() => void handleClear()}>
-                Clear screen
-              </button>
-            </>
-          ) : (
-            <div className="viewer-hint">
-              This display mirrors the controller in real time.
-            </div>
-          )}
-        </div>
-
-        {controller && (
-          <div className="control-panel">
-            <label htmlFor="redirect">Redirect destination</label>
-
-            <div className="redirect-row">
-              <input
-                id="redirect"
-                type="url"
-                value={redirectUrl}
-                onChange={(event) => handleUrlChange(event.target.value)}
-                placeholder="https://example.com"
-                inputMode="url"
-              />
-
-              <button className="primary" onClick={() => void handleGo()}>
-                Go
-              </button>
-            </div>
-
-            <p>
-              Typing mirrors to viewers in this room. Go opens the destination
-              on the controller and sends a redirect event to connected
-              viewers.
-            </p>
-          </div>
-        )}
-
-        <div className="roomline">
-          Shared room: <strong>/{room}</strong> ·{" "}
-          {controller ? "Controller" : "Viewer"} mode
-        </div>
+        <p className="viewer-hint">
+          Everyone on this page shares the same live search.
+        </p>
       </section>
 
       <footer>
@@ -349,18 +183,4 @@ if (!url || !key) {
       </footer>
     </main>
   );
-}
-
-function safeUrl(value: string): string {
-  try {
-    const parsed = new URL(value.trim());
-
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return "";
-    }
-
-    return parsed.href;
-  } catch {
-    return "";
-  }
 }
