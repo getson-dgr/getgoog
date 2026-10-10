@@ -154,9 +154,9 @@ if (sent) {
   // Tell connected visitors to clear the search box
   await sendState("typing");
 
-  window.location.assign(
-    "https://www.google.com/search?q=" + encodeURIComponent(query)
-  );
+window.location.replace(
+  "https://www.google.com/search?q=" + encodeURIComponent(query)
+);
 }
 
   return (
