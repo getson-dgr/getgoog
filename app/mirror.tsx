@@ -24,9 +24,17 @@ const trending = [
   "trending searches",
 ];
 
+function googleSearchUrl(query: string) {
+  return (
+    "https://www.google.com/search?q=" +
+    encodeURIComponent(query)
+  );
+}
+
 export default function Mirror() {
   const [text, setText] = useState("");
   const [status, setStatus] = useState("Connecting…");
+
   const channelRef = useRef<RealtimeChannel | null>(null);
   const connectedRef = useRef(false);
   const textRef = useRef("");
@@ -37,9 +45,7 @@ export default function Mirror() {
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!url || !key) {
-      setStatus(
-        `Configuration missing: URL=${Boolean(url)}, KEY=${Boolean(key)}`
-      );
+      setStatus("Configuration missing");
       return;
     }
 
@@ -56,26 +62,17 @@ export default function Mirror() {
       if (!active || !payload) return;
 
       const message = payload as Partial<SharedMessage>;
+
       if (typeof message.text !== "string") return;
 
       textRef.current = message.text;
       setText(message.text);
 
-      if (message.action === "search") {
-        const destination =
-          "https://www.google.com/search?q=" +
-          encodeURIComponent(message.text.trim());
-
-        if (message.text.trim()) {
-          window.location.assign(destination);
-        }
+      if (message.action === "search" && message.text.trim()) {
+        window.location.replace(googleSearchUrl(message.text.trim()));
       }
     });
-<img
-  src="/google-home.png"
-  alt="Mobile search homepage"
-  className="reference-image"
-/>
+
     channel.subscribe((subscriptionStatus) => {
       if (!active) return;
 
@@ -98,25 +95,25 @@ export default function Mirror() {
       channelRef.current = null;
 
       if (timerRef.current) clearTimeout(timerRef.current);
+
       void supabase.removeChannel(channel);
     };
   }, []);
 
   async function sendState(action: SharedMessage["action"]) {
     const channel = channelRef.current;
+
     if (!channel || !connectedRef.current) {
       setStatus("Connecting…");
       return false;
     }
-
-    const query = textRef.current;
 
     try {
       const result = await channel.send({
         type: "broadcast",
         event: "shared-state",
         payload: {
-          text: query,
+          text: textRef.current,
           action,
           updatedAt: Date.now(),
         } satisfies SharedMessage,
@@ -145,19 +142,20 @@ export default function Mirror() {
     }, 100);
   }
 
-const sent = await sendState("search");
+  async function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
 
-if (sent) {
-  textRef.current = "";
-  setText("");
+    const query = textRef.current.trim();
+    if (!query) return;
 
-  // Tell connected visitors to clear the search box
-  await sendState("typing");
+    if (timerRef.current) clearTimeout(timerRef.current);
 
-window.location.replace(
-  "https://www.google.com/search?q=" + encodeURIComponent(query)
-);
-}
+    // Broadcast the search to other connected visitors.
+    // Search locally even if the live connection is unavailable.
+    await sendState("search");
+
+    window.location.replace(googleSearchUrl(query));
+  }
 
   return (
     <main className="mobile-search-page">
@@ -168,16 +166,19 @@ window.location.replace(
         </nav>
 
         <div className="header-tools">
-          <span className={`connection-dot ${status === "Live" ? "online" : ""}`} />
-          <button type="button" aria-label="Notifications" className="tool-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
-            </svg>
-          </button>
-          <button type="button" aria-label="Apps" className="apps-grid">
-            {Array.from({ length: 9 }, (_, i) => <i key={i} />)}
-          </button>
-          <div className="profile-ring"><span>G</span></div>
+          <span
+            className={`connection-dot ${status === "Live" ? "online" : ""}`}
+            title={status}
+          />
+
+          <a
+            className="sign-in-button"
+            href="https://accounts.google.com/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Sign in
+          </a>
         </div>
       </header>
 
@@ -192,7 +193,11 @@ window.location.replace(
         </div>
 
         <form className="mobile-search-box" onSubmit={handleSearch}>
-          <button className="search-symbol" type="submit" aria-label="Search">
+          <button
+            className="search-symbol"
+            type="submit"
+            aria-label="Search"
+          >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="10.5" cy="10.5" r="6.5" />
               <path d="m15.5 15.5 5 5" />
@@ -200,11 +205,20 @@ window.location.replace(
           </button>
 
           <input
+            type="search"
             aria-label="Shared search query"
             value={text}
             onChange={(event) => handleChange(event.target.value)}
-            placeholder=""
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
+            enterKeyHint="search"
             autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
           />
 
           {text && (
@@ -218,25 +232,24 @@ window.location.replace(
             </button>
           )}
 
-          <button className="search-tool" type="button" aria-label="AI search">
+          <button
+            className="search-tool"
+            type="button"
+            aria-label="AI search"
+          >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m12 2 1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8L12 2Z" />
-              <path d="m19 15 .9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z" />
             </svg>
           </button>
 
-          <button className="search-tool" type="button" aria-label="Voice search">
+          <button
+            className="search-tool"
+            type="button"
+            aria-label="Voice search"
+          >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <rect x="9" y="2" width="6" height="13" rx="3" />
               <path d="M5 11a7 7 0 0 0 14 0M12 18v4M9 22h6" />
-            </svg>
-          </button>
-
-          <button className="search-tool" type="button" aria-label="Image search">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
-              <circle cx="11" cy="11" r="3" />
-              <path d="m14 14 4 4" />
             </svg>
           </button>
         </form>
@@ -252,13 +265,24 @@ window.location.replace(
 
         <section className="trending-section">
           <h2>Trending searches <span>⋮</span></h2>
+
           <div className="trending-list">
             {trending.map((item) => (
               <button
                 type="button"
                 className="trending-item"
                 key={item}
-                onClick={() => handleChange(item)}
+                onClick={() => {
+                  handleChange(item);
+                  textRef.current = item;
+                  window.setTimeout(() => {
+                    // Use the same form submission handler.
+                    const form = document.querySelector<HTMLFormElement>(
+                      ".mobile-search-box"
+                    );
+                    form?.requestSubmit();
+                  }, 0);
+                }}
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="m3 17 6-6 4 3 7-8M14 6h6v6" />
@@ -271,7 +295,9 @@ window.location.replace(
       </section>
 
       <footer className="mobile-search-footer">
-        <span>{status === "Live" ? "Shared live search enabled" : status}</span>
+        <span>
+          {status === "Live" ? "Shared live search enabled" : status}
+        </span>
         <span>Independent demo interface</span>
       </footer>
     </main>
