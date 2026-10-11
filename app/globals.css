@@ -124,16 +124,17 @@ button {
 
 
 
+
 .sign-in-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 40px;
   padding: 0 24px;
-  border: none;
+  border: 1px solid #5f6368;
   border-radius: 24px;
-  background: #8ab4f8;
-  color: #202124;
+  background: #303134;
+  color: #e8eaed;
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
@@ -143,13 +144,14 @@ button {
 }
 
 .sign-in-button:hover {
-  background: #aecbfa;
+  background: #3c4043;
 }
 
 .sign-in-button:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid #8ab4f8;
   outline-offset: 3px;
 }
+
 
 
 
