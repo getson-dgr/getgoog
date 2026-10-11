@@ -424,3 +424,26 @@ button {
     padding-right: 14px;
   }
 }
+
+/* Hide the Supabase connection indicator everywhere */
+.connection-dot,
+.connection-dot.online {
+  display: none !important;
+}
+
+/* Force the Sign in button to stay dark */
+a.sign-in-button,
+.sign-in-button {
+  background: #303134 !important;
+  color: #e8eaed !important;
+  border: 1px solid #5f6368 !important;
+  border-radius: 24px;
+  padding: 0 24px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none !important;
+  font-size: 14px;
+  font-weight: 600;
+}
