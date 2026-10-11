@@ -123,6 +123,7 @@ button {
 }
 
 
+
 .sign-in-button {
   display: inline-flex;
   align-items: center;
@@ -149,6 +150,7 @@ button {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
+
 
 
 .sign-in-button:hover {
