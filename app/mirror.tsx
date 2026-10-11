@@ -159,25 +159,24 @@ export default function Mirror() {
 
   return (
     <main className="mobile-search-page">
-      <header className="mobile-search-header">
-        <nav className="search-tabs" aria-label="Search categories">
-          <button className="tab active" type="button">ALL</button>
-          <button className="tab" type="button">IMAGES</button>
-        </nav>
+   
+<header className="mobile-search-header">
+  <nav className="search-tabs" aria-label="Search categories">
+    <button className="tab active" type="button">ALL</button>
+    <button className="tab" type="button">IMAGES</button>
+  </nav>
 
-       
-<div className="header-tools">
-  <a
-    className="sign-in-button"
-    href="https://accounts.google.com/"
-    target="_blank"
-    rel="noreferrer"
-  >
-    Sign in
-  </a>
-</div>
-
-      </header>
+  <div className="header-tools">
+    <a
+      className="sign-in-button"
+      href="https://accounts.google.com/"
+      target="_blank"
+      rel="noreferrer"
+    >
+      Sign in
+    </a>
+  </div>
+</header>
 
       <section className="mobile-search-content">
         <div className="google-wordmark" aria-label="Search">
