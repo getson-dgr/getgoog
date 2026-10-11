@@ -165,21 +165,18 @@ export default function Mirror() {
           <button className="tab" type="button">IMAGES</button>
         </nav>
 
-        <div className="header-tools">
-          <span
-            className={`connection-dot ${status === "Live" ? "online" : ""}`}
-            title={status}
-          />
+       
+<div className="header-tools">
+  <a
+    className="sign-in-button"
+    href="https://accounts.google.com/"
+    target="_blank"
+    rel="noreferrer"
+  >
+    Sign in
+  </a>
+</div>
 
-          <a
-            className="sign-in-button"
-            href="https://accounts.google.com/"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Sign in
-          </a>
-        </div>
       </header>
 
       <section className="mobile-search-content">
