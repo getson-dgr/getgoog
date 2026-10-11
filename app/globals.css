@@ -122,20 +122,34 @@ button {
   background: #34a853;
 }
 
+
 .sign-in-button {
   display: inline-flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
   min-height: 40px;
-  padding: 0 17px;
-  border-radius: 22px;
+  padding: 0 24px;
+  border: none;
+  border-radius: 24px;
   background: #8ab4f8;
   color: #202124;
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s ease;
 }
+
+.sign-in-button:hover {
+  background: #aecbfa;
+}
+
+.sign-in-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 
 .sign-in-button:hover {
   filter: brightness(.96);
